@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"runtime/debug"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -23,57 +26,52 @@ func TestCRUD(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	defer d.Close()
-	if err := d.Update(func(tx *TX) (err error) {
-		if err := tx.Clear(); err != nil {
-			t.Fatalf(err.Error())
-		}
-		mock := &testStruct{Id: []byte("hepp")}
-		if err := tx.Del(mock); err != ErrNotFound {
-			t.Fatalf("Wanted an ErrNotFound")
-		}
-		hehu := testStruct{
-			Name: "hehu",
-			Age:  12,
-		}
-		if err := tx.Set(&hehu); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if hehu.Id == nil {
-			t.Fatalf("Did not create id")
-		}
-		hehu2 := testStruct{Id: hehu.Id}
-		if err := tx.Get(&hehu2); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if !reflect.DeepEqual(hehu, hehu2) {
-			t.Fatalf("Did not get the same data, wanted %+v but got %+v", hehu, hehu2)
-		}
-		hehu2.Age = 13
-		if err := tx.Set(&hehu2); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if bytes.Compare(hehu2.Id, hehu.Id) != 0 {
-			t.Fatalf("Changed id")
-		}
-		hehu3 := testStruct{Id: hehu.Id}
-		if err := tx.Get(&hehu3); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if !reflect.DeepEqual(hehu2, hehu3) {
-			t.Fatalf("Did not get the same data")
-		}
-		if bytes.Compare(hehu3.Id, hehu.Id) != 0 {
-			t.Fatalf("Changed id")
-		}
-		if err := tx.Del(&hehu); err != nil {
-			t.Fatalf(err.Error())
-		}
-		hehu4 := testStruct{Id: hehu.Id}
-		if err := tx.Get(&hehu4); err != ErrNotFound {
-			t.Fatalf(err.Error())
-		}
-		return
-	}); err != nil {
+	if err := d.Clear(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	mock := &testStruct{Id: []byte("hepp")}
+	if err := d.Del(mock); err != ErrNotFound {
+		t.Fatalf("Wanted an ErrNotFound")
+	}
+	hehu := testStruct{
+		Name: "hehu",
+		Age:  12,
+	}
+	if err := d.Set(&hehu); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if hehu.Id == nil {
+		t.Fatalf("Did not create id")
+	}
+	hehu2 := testStruct{Id: hehu.Id}
+	if err := d.Get(&hehu2); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if !reflect.DeepEqual(hehu, hehu2) {
+		t.Fatalf("Did not get the same data, wanted %+v but got %+v", hehu, hehu2)
+	}
+	hehu2.Age = 13
+	if err := d.Set(&hehu2); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if bytes.Compare(hehu2.Id, hehu.Id) != 0 {
+		t.Fatalf("Changed id")
+	}
+	hehu3 := testStruct{Id: hehu.Id}
+	if err := d.Get(&hehu3); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if !reflect.DeepEqual(hehu2, hehu3) {
+		t.Fatalf("Did not get the same data")
+	}
+	if bytes.Compare(hehu3.Id, hehu.Id) != 0 {
+		t.Fatalf("Changed id")
+	}
+	if err := d.Del(&hehu); err != nil {
+		t.Fatalf(err.Error())
+	}
+	hehu4 := testStruct{Id: hehu.Id}
+	if err := d.Get(&hehu4); err != ErrNotFound {
 		t.Fatalf(err.Error())
 	}
 }
@@ -91,36 +89,31 @@ func TestCreatedAt(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	defer d.Close()
-	if err := d.Update(func(tx *TX) (err error) {
-		tx.Clear()
-		ts := &testStruct{}
-		if err := tx.Set(ts); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if ts.CreatedAt.IsZero() {
-			t.Fatalf("Wanted non nil")
-		}
-		if ts.UpdatedAt.IsZero() {
-			t.Fatalf("Wanted non nil")
-		}
-		if !isAlmost(ts.UpdatedAt, ts.CreatedAt) {
-			t.Fatalf("Wanted equal")
-		}
-		oldUpd := ts.UpdatedAt
-		oldCre := ts.CreatedAt
-		ts.Name = "hehu"
-		if err := tx.Set(ts); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if oldUpd.Equal(ts.UpdatedAt) {
-			t.Fatalf("Wanted non equal")
-		}
-		if !oldCre.Equal(ts.CreatedAt) {
-			t.Fatalf("Wanted equal")
-		}
-		return
-	}); err != nil {
+	d.Clear()
+	ts := &testStruct{}
+	if err := d.Set(ts); err != nil {
 		t.Fatalf(err.Error())
+	}
+	if ts.CreatedAt.IsZero() {
+		t.Fatalf("Wanted non nil")
+	}
+	if ts.UpdatedAt.IsZero() {
+		t.Fatalf("Wanted non nil")
+	}
+	if !isAlmost(ts.UpdatedAt, ts.CreatedAt) {
+		t.Fatalf("Wanted equal")
+	}
+	oldUpd := ts.UpdatedAt
+	oldCre := ts.CreatedAt
+	ts.Name = "hehu"
+	if err := d.Set(ts); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if oldUpd.Equal(ts.UpdatedAt) {
+		t.Fatalf("Wanted non equal")
+	}
+	if !oldCre.Equal(ts.CreatedAt) {
+		t.Fatalf("Wanted equal")
 	}
 }
 
@@ -133,6 +126,7 @@ type ExampleStruct struct {
 func ExampleCRUD() {
 	// open the databse file "example" and panic if fail
 	d := MustDB("example")
+	// start a write transaction
 	if err := d.Update(func(tx *TX) (err error) {
 		// clear the database from previous example runs
 		if err = tx.Clear(); err != nil {
@@ -255,4 +249,111 @@ func TestQuery(t *testing.T) {
 	}); err != nil {
 		t.Fatalf(err.Error())
 	}
+}
+
+type subTester struct {
+	d       *DB
+	ts      *testStruct
+	t       *testing.T
+	sub     *Subscription
+	removed []*testStruct
+	created []*testStruct
+	updated []*testStruct
+	lock    sync.RWMutex
+	event   chan struct{}
+}
+
+func startSubTester(t *testing.T, d *DB, ts *testStruct) (result *subTester) {
+	result = &subTester{
+		t:     t,
+		d:     d,
+		ts:    ts,
+		event: make(chan struct{}),
+	}
+	result.start()
+	return result
+}
+
+func (self *subTester) start() {
+	self.event = make(chan struct{})
+	var err error
+	if self.sub, err = self.d.Subscription("subtest1", self.ts, AllOps, func(obj interface{}, op Operation) error {
+		self.lock.Lock()
+		defer self.lock.Unlock()
+		switch op {
+		case Delete:
+			self.removed = append(self.removed, obj.(*testStruct))
+		case Create:
+			self.created = append(self.created, obj.(*testStruct))
+		case Update:
+			self.updated = append(self.updated, obj.(*testStruct))
+		}
+		self.event <- struct{}{}
+		return nil
+	}); err != nil {
+		self.t.Fatalf(err.Error())
+	}
+	self.sub.Subscribe()
+}
+
+func (self *subTester) assert(rem, cre, upd []*testStruct) {
+	select {
+	case <-self.event:
+	case <-time.After(time.Millisecond * 50):
+	}
+	self.lock.RLock()
+	defer self.lock.RUnlock()
+	where := strings.Split(string(debug.Stack()), "\n")[2]
+	if !reflect.DeepEqual(rem, self.removed) {
+		self.t.Fatalf("%v: Wanted %v to have been deleted, but got %v", where, rem, self.removed)
+	}
+	if !reflect.DeepEqual(cre, self.created) {
+		self.t.Fatalf("%v: Wanted %v to have been created, but got %v", where, cre, self.created)
+	}
+	if !reflect.DeepEqual(upd, self.updated) {
+		self.t.Fatalf("%v: Wanted %v to have been updated, but got %v", where, upd, self.updated)
+	}
+}
+
+func TestIdSubscribe(t *testing.T) {
+	d, err := NewDB("test")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	defer d.Close()
+	if err := d.Clear(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	hehu := testStruct{
+		Name: "hehu",
+		Age:  12,
+	}
+	if err := d.Set(&hehu); err != nil {
+		t.Fatalf(err.Error())
+	}
+	testSub := startSubTester(t, d, &hehu)
+	if err := d.Del(&hehu); err != nil {
+		t.Fatalf(err.Error())
+	}
+	testSub.assert([]*testStruct{&hehu}, nil, nil)
+	hehu2 := hehu
+	hehu2.Name = "blepp"
+	if err := d.Set(&hehu2); err != nil {
+		t.Fatalf(err.Error())
+	}
+	testSub.assert([]*testStruct{&hehu}, []*testStruct{&hehu2}, nil)
+	hehu3 := hehu2
+	hehu3.Name = "jaja"
+	if err := d.Set(&hehu3); err != nil {
+		t.Fatalf(err.Error())
+	}
+	testSub.assert([]*testStruct{&hehu}, []*testStruct{&hehu2}, []*testStruct{&hehu3})
+	hehu4 := testStruct{
+		Name: "knasen",
+	}
+	if err := d.Set(&hehu4); err != nil {
+		t.Fatalf(err.Error())
+	}
+	time.Sleep(time.Millisecond * 100)
+	testSub.assert([]*testStruct{&hehu}, []*testStruct{&hehu2}, []*testStruct{&hehu3})
 }

@@ -97,3 +97,19 @@ func (self *DB) Update(f func(tx *TX) error) (err error) {
 	}
 	return
 }
+
+func (self *DB) Set(obj interface{}) (err error) {
+	return self.Update(func(tx *TX) error { return tx.Set(obj) })
+}
+
+func (self *DB) Get(obj interface{}) error {
+	return self.View(func(tx *TX) error { return tx.Get(obj) })
+}
+
+func (self *DB) Del(obj interface{}) (err error) {
+	return self.Update(func(tx *TX) error { return tx.Del(obj) })
+}
+
+func (self *DB) Clear() (err error) {
+	return self.Update(func(tx *TX) error { return tx.Clear() })
+}
