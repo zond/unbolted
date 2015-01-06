@@ -412,3 +412,83 @@ func TestQuerySubscribe(t *testing.T) {
 	}
 	testSub.assert([]*testStruct{&hehu2}, []*testStruct{&hehu}, []*testStruct{&hehu2})
 }
+
+type phase struct {
+	Id   []byte
+	Game []byte
+}
+
+func (self *phase) Updated(d *DB, old *phase) (err error) {
+	g := game{Id: self.Game}
+	if err = d.Get(&g); err != nil {
+		return
+	}
+	return d.EmitUpdate(&g)
+}
+
+type game struct {
+	Id []byte
+}
+
+func (self *game) Updated(d *DB, old *game) (err error) {
+	var members []member
+	if err = d.Query().Where(Equals{"Game", self.Id}).All(&members); err != nil {
+		return
+	}
+	for _, member := range members {
+		cpy := member
+		if err = d.EmitUpdate(&cpy); err != nil {
+			return
+		}
+	}
+	return
+}
+
+type member struct {
+	Id      []byte
+	User    []byte
+	Game    []byte `unbolted:"index"`
+	updated chan bool
+}
+
+func (self *member) Updated(d *DB, old *member) {
+	close(globalTestLock)
+}
+
+type user struct {
+	Id []byte
+}
+
+var globalTestLock chan bool
+
+func TestChains(t *testing.T) {
+	d, err := NewDB("test")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	if err := d.Clear(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	defer d.Close()
+	u := user{}
+	if err := d.Set(&u); err != nil {
+		t.Fatalf(err.Error())
+	}
+	g := game{}
+	if err := d.Set(&g); err != nil {
+		t.Fatalf(err.Error())
+	}
+	p := phase{Game: g.Id}
+	if err := d.Set(&p); err != nil {
+		t.Fatalf(err.Error())
+	}
+	m := member{Game: g.Id, User: u.Id}
+	if err := d.Set(&m); err != nil {
+		t.Fatalf(err.Error())
+	}
+	globalTestLock = make(chan bool)
+	if err := d.Set(&p); err != nil {
+		t.Fatalf(err.Error())
+	}
+	<-globalTestLock
+}
