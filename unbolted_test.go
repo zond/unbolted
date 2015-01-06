@@ -445,10 +445,9 @@ func (self *game) Updated(d *DB, old *game) (err error) {
 }
 
 type member struct {
-	Id      []byte
-	User    []byte
-	Game    []byte `unbolted:"index"`
-	updated chan bool
+	Id   []byte
+	User []byte
+	Game []byte `unbolted:"index"`
 }
 
 func (self *member) Updated(d *DB, old *member) {
@@ -490,5 +489,9 @@ func TestChains(t *testing.T) {
 	if err := d.Set(&p); err != nil {
 		t.Fatalf(err.Error())
 	}
-	<-globalTestLock
+	select {
+	case <-globalTestLock:
+	case <-time.After(time.Second):
+		t.Fatalf("Didn't get the user update!")
+	}
 }
