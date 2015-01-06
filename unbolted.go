@@ -181,3 +181,16 @@ func minimum(result int, slice ...int) int {
 	}
 	return result
 }
+
+func callErr(f reflect.Value, args []reflect.Value) (err error) {
+	res := f.Call(args)
+	if len(res) > 0 {
+		if e, ok := res[len(res)-1].Interface().(error); ok {
+			if !res[len(res)-1].IsNil() {
+				err = e
+				return
+			}
+		}
+	}
+	return
+}

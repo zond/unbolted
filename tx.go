@@ -256,6 +256,9 @@ func (self *TX) setOp(expr *setop.SetExpression) (result []KV) {
 
 func (self *TX) Query() *Query {
 	return &Query{
-		tx: self,
+		db: self.db,
+		run: func(f func(*TX) error) error {
+			return f(self)
+		},
 	}
 }

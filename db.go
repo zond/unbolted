@@ -1,7 +1,9 @@
 package unbolted
 
 import (
+	"bytes"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/boltdb/bolt"
@@ -112,4 +114,83 @@ func (self *DB) Del(obj interface{}) (err error) {
 
 func (self *DB) Clear() (err error) {
 	return self.Update(func(tx *TX) error { return tx.Clear() })
+}
+
+func (self *DB) Query() *Query {
+	return &Query{
+		db: self,
+		run: func(f func(*TX) error) error {
+			return self.View(f)
+		},
+	}
+}
+
+func (self *DB) Unsubscribe(name string) {
+	self.lock.Lock()
+	defer self.lock.Unlock()
+	for _, typeSubs := range self.subscriptions {
+		delete(typeSubs, name)
+	}
+}
+
+func (self *DB) Subscription(name string, obj interface{}, ops Operation, subscriber Subscriber) (result *Subscription, err error) {
+	var wantedValue reflect.Value
+	var wantedId reflect.Value
+	if wantedValue, wantedId, err = identify(obj); err != nil {
+		return
+	}
+	wantedType := wantedValue.Type()
+	wantedBytes := make([]byte, len(wantedId.Bytes()))
+	copy(wantedBytes, wantedId.Bytes())
+	result = &Subscription{
+		name: name,
+		db:   self,
+		matcher: func(tx *TX, typ reflect.Type, value reflect.Value) (result bool, err error) {
+			if typ.Name() != wantedType.Name() {
+				return
+			}
+			if bytes.Compare(value.FieldByName(idField).Bytes(), wantedBytes) != 0 {
+				return
+			}
+			result = true
+			return
+		},
+		subscriber: subscriber,
+		ops:        ops,
+		typ:        wantedType,
+	}
+	return
+}
+
+func (self *DB) EmitUpdate(obj interface{}) (err error) {
+	value := reflect.ValueOf(obj).Elem()
+	return self.emit(reflect.TypeOf(value.Interface()), &value, &value)
+}
+
+func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) (err error) {
+	if oldValue != nil && newValue != nil {
+		if chain := newValue.Addr().MethodByName("Updated"); chain.IsValid() {
+			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self), oldValue.Addr()}); err != nil {
+				return
+			}
+		}
+	} else if newValue != nil {
+		if chain := newValue.Addr().MethodByName("Created"); chain.IsValid() {
+			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self)}); err != nil {
+				return
+			}
+		}
+	} else if oldValue != nil {
+		if chain := oldValue.Addr().MethodByName("Deleted"); chain.IsValid() {
+			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self)}); err != nil {
+				return
+			}
+		}
+	}
+	self.lock.RLock()
+	defer self.lock.RUnlock()
+	for _, subscription := range self.subscriptions[typ.Name()] {
+		go subscription.handle(typ, oldValue, newValue)
+	}
+	return
 }

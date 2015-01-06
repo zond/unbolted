@@ -163,98 +163,95 @@ func TestQuery(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 	defer d.Close()
-	if err := d.Update(func(tx *TX) (err error) {
-		tx.Clear()
-		hehu := testStruct{
-			Name: "hehu",
-			Age:  12,
-		}
-		if err := tx.Set(&hehu); err != nil {
-			t.Fatalf(err.Error())
-		}
-		var res []testStruct
-		if err := tx.Query().All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		wanted := []testStruct{
-			hehu,
-		}
-		if !reflect.DeepEqual(res, wanted) {
-			t.Fatalf("Wanted %v but got %v", wanted, res)
-		}
-		res = nil
-		if err := tx.Query().Where(Equals{"Name", "hehu"}).All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if !reflect.DeepEqual(res, wanted) {
-			t.Fatalf("Wanted %v but got %v", wanted, res)
-		}
-		res = nil
-		if err := tx.Query().Where(Equals{"Name", "blapp"}).All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if len(res) != 0 {
-			t.Fatalf("Wanted [] but got %v", res)
-		}
-		res = nil
-		if err := tx.Query().Where(And{Equals{"Name", "hehu"}, Equals{"Age", 12}}).All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if !reflect.DeepEqual(res, wanted) {
-			t.Fatalf("Wanted %v but got %v", wanted, res)
-		}
-		res = nil
-		if err := tx.Query().Where(And{Equals{"Name", "blapp"}, Equals{"Age", 11}}).All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if len(res) != 0 {
-			t.Fatalf("Wanted [] but got %v", res)
-		}
-		res = nil
-		if err := tx.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if !reflect.DeepEqual(res, wanted) {
-			t.Fatalf("Wanted %v but got %v", wanted, res)
-		}
-		res = nil
-		if err := tx.Query().Where(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if len(res) != 0 {
-			t.Fatalf("Wanted [] but got %v", res)
-		}
-		res = nil
-		if err := tx.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).Except(Equals{"Name", "blapp"}).All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if !reflect.DeepEqual(res, wanted) {
-			t.Fatalf("Wanted %v but got %v", wanted, res)
-		}
-		res = nil
-		if err := tx.Query().Where(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).Except(Equals{"Name", "hehu"}).All(&res); err != nil {
-			t.Fatalf(err.Error())
-		}
-		if len(res) != 0 {
-			t.Fatalf("Wanted [] but got %v", res)
-		}
-		var res2 testStruct
-		if found, err := tx.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 11}, Equals{"Age", 12}}}).Except(Equals{"Name", "blapp"}).First(&res2); err != nil || !found {
-			t.Fatalf("%v, %v", found, err)
-		}
-		if !reflect.DeepEqual(hehu, res2) {
-			t.Fatalf("Wanted %v but got %v", hehu, res2)
-		}
-		return
-	}); err != nil {
+	if err := d.Clear(); err != nil {
 		t.Fatalf(err.Error())
+	}
+	hehu := testStruct{
+		Name: "hehu",
+		Age:  12,
+	}
+	if err := d.Set(&hehu); err != nil {
+		t.Fatalf(err.Error())
+	}
+	var res []testStruct
+	if err := d.Query().All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	wanted := []testStruct{
+		hehu,
+	}
+	if !reflect.DeepEqual(res, wanted) {
+		t.Fatalf("Wanted %v but got %v", wanted, res)
+	}
+	res = nil
+	if err := d.Query().Where(Equals{"Name", "hehu"}).All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if !reflect.DeepEqual(res, wanted) {
+		t.Fatalf("Wanted %v but got %v", wanted, res)
+	}
+	res = nil
+	if err := d.Query().Where(Equals{"Name", "blapp"}).All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if len(res) != 0 {
+		t.Fatalf("Wanted [] but got %v", res)
+	}
+	res = nil
+	if err := d.Query().Where(And{Equals{"Name", "hehu"}, Equals{"Age", 12}}).All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if !reflect.DeepEqual(res, wanted) {
+		t.Fatalf("Wanted %v but got %v", wanted, res)
+	}
+	res = nil
+	if err := d.Query().Where(And{Equals{"Name", "blapp"}, Equals{"Age", 11}}).All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if len(res) != 0 {
+		t.Fatalf("Wanted [] but got %v", res)
+	}
+	res = nil
+	if err := d.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if !reflect.DeepEqual(res, wanted) {
+		t.Fatalf("Wanted %v but got %v", wanted, res)
+	}
+	res = nil
+	if err := d.Query().Where(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if len(res) != 0 {
+		t.Fatalf("Wanted [] but got %v", res)
+	}
+	res = nil
+	if err := d.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 12}, Equals{"Age", 11}}}).Except(Equals{"Name", "blapp"}).All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if !reflect.DeepEqual(res, wanted) {
+		t.Fatalf("Wanted %v but got %v", wanted, res)
+	}
+	res = nil
+	if err := d.Query().Where(And{Equals{"Name", "blapp"}, Or{Equals{"Age", 11}, Equals{"Age", 13}}}).Except(Equals{"Name", "hehu"}).All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if len(res) != 0 {
+		t.Fatalf("Wanted [] but got %v", res)
+	}
+	var res2 testStruct
+	if found, err := d.Query().Where(And{Equals{"Name", "hehu"}, Or{Equals{"Age", 11}, Equals{"Age", 12}}}).Except(Equals{"Name", "blapp"}).First(&res2); err != nil || !found {
+		t.Fatalf("%v, %v", found, err)
+	}
+	if !reflect.DeepEqual(hehu, res2) {
+		t.Fatalf("Wanted %v but got %v", hehu, res2)
 	}
 }
 
 type subTester struct {
 	d       *DB
-	ts      *testStruct
 	t       *testing.T
+	targ    interface{}
 	sub     *Subscription
 	removed []*testStruct
 	created []*testStruct
@@ -263,21 +260,24 @@ type subTester struct {
 	event   chan struct{}
 }
 
-func startSubTester(t *testing.T, d *DB, ts *testStruct) (result *subTester) {
+func newSubTester(t *testing.T, d *DB) (result *subTester) {
 	result = &subTester{
 		t:     t,
 		d:     d,
-		ts:    ts,
 		event: make(chan struct{}),
 	}
-	result.start()
+	result.event = make(chan struct{})
 	return result
 }
 
-func (self *subTester) start() {
-	self.event = make(chan struct{})
+func (self *subTester) subscribe() *subTester {
+	self.sub.Subscribe()
+	return self
+}
+
+func (self *subTester) target(targ interface{}) *subTester {
 	var err error
-	if self.sub, err = self.d.Subscription("subtest1", self.ts, AllOps, func(obj interface{}, op Operation) error {
+	if self.sub, err = self.d.Subscription("subtest1", targ, AllOps, func(obj interface{}, op Operation) error {
 		self.lock.Lock()
 		defer self.lock.Unlock()
 		switch op {
@@ -293,7 +293,7 @@ func (self *subTester) start() {
 	}); err != nil {
 		self.t.Fatalf(err.Error())
 	}
-	self.sub.Subscribe()
+	return self
 }
 
 func (self *subTester) assert(rem, cre, upd []*testStruct) {
@@ -331,7 +331,7 @@ func TestIdSubscribe(t *testing.T) {
 	if err := d.Set(&hehu); err != nil {
 		t.Fatalf(err.Error())
 	}
-	testSub := startSubTester(t, d, &hehu)
+	testSub := newSubTester(t, d).target(&hehu).subscribe()
 	if err := d.Del(&hehu); err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -356,4 +356,59 @@ func TestIdSubscribe(t *testing.T) {
 	}
 	time.Sleep(time.Millisecond * 100)
 	testSub.assert([]*testStruct{&hehu}, []*testStruct{&hehu2}, []*testStruct{&hehu3})
+}
+
+func (self *subTester) query(q *Query, targ interface{}) *subTester {
+	var err error
+	if self.sub, err = q.Subscription("subtest1", targ, AllOps, func(obj interface{}, op Operation) error {
+		self.lock.Lock()
+		defer self.lock.Unlock()
+		switch op {
+		case Delete:
+			self.removed = append(self.removed, obj.(*testStruct))
+		case Create:
+			self.created = append(self.created, obj.(*testStruct))
+		case Update:
+			self.updated = append(self.updated, obj.(*testStruct))
+		}
+		self.event <- struct{}{}
+		return nil
+	}); err != nil {
+		self.t.Fatalf(err.Error())
+	}
+	return self
+}
+
+func TestQuerySubscribe(t *testing.T) {
+	d, err := NewDB("test")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	if err := d.Clear(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	defer d.Close()
+	hehu := testStruct{}
+	testSub := newSubTester(t, d).query(d.Query().Where(Equals{"Name", "qname"}), &testStruct{}).subscribe()
+	hehu.Name = "qname"
+	if err := d.Set(&hehu); err != nil {
+		t.Errorf(err.Error())
+	}
+	testSub.assert(nil, []*testStruct{&hehu}, nil)
+	hehu2 := hehu
+	hehu2.Age = 31
+	if err := d.Set(&hehu2); err != nil {
+		t.Errorf(err.Error())
+	}
+	testSub.assert(nil, []*testStruct{&hehu}, []*testStruct{&hehu2})
+	if err := d.Del(&hehu2); err != nil {
+		t.Errorf(err.Error())
+	}
+	testSub.assert([]*testStruct{&hehu2}, []*testStruct{&hehu}, []*testStruct{&hehu2})
+	hehu3 := hehu2
+	hehu3.Name = "othername"
+	if err := d.Set(&hehu3); err != nil {
+		t.Errorf(err.Error())
+	}
+	testSub.assert([]*testStruct{&hehu2}, []*testStruct{&hehu}, []*testStruct{&hehu2})
 }

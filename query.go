@@ -111,11 +111,12 @@ Query is a search operation using an SQL-like syntax to fetch records from the d
 Example: db.Query().Filter(And{Equals{"Name", "John"}, Or{Equals{"Surname", "Doe"}, Equals{"Surname", "Smith"}}}).All(&result)
 */
 type Query struct {
-	tx           *TX
+	db           *DB
 	typ          reflect.Type
 	intersection QFilter
 	difference   QFilter
 	limit        int
+	run          func(func(*TX) error) error
 }
 
 /*
@@ -134,7 +135,7 @@ func (self *Query) Subscription(name string, obj interface{}, ops Operation, sub
 	}
 	self.typ = value.Type()
 	result = &Subscription{
-		db:         self.tx.db,
+		db:         self.db,
 		name:       name,
 		matcher:    self.match,
 		subscriber: subscriber,
@@ -144,17 +145,22 @@ func (self *Query) Subscription(name string, obj interface{}, ops Operation, sub
 	return
 }
 
-func (self *Query) match(typ reflect.Type, value reflect.Value) (result bool, err error) {
+type queryRun struct {
+	query *Query
+	tx    *TX
+}
+
+func (self *Query) match(tx *TX, typ reflect.Type, value reflect.Value) (result bool, err error) {
 	if self.typ.Name() != typ.Name() {
 		return
 	}
 	if self.intersection != nil {
-		if result, err = self.intersection.match(self.tx, typ, value); err != nil || !result {
+		if result, err = self.intersection.match(tx, typ, value); err != nil || !result {
 			return
 		}
 	}
 	if self.difference != nil {
-		if result, err = self.difference.match(self.tx, typ, value); err != nil || result {
+		if result, err = self.difference.match(tx, typ, value); err != nil || result {
 			result = true
 			return
 		}
@@ -163,26 +169,26 @@ func (self *Query) match(typ reflect.Type, value reflect.Value) (result bool, er
 	return
 }
 
-func (self *Query) each(f func(elementPointer reflect.Value) (bool, error)) (err error) {
+func (self *queryRun) each(f func(elementPointer reflect.Value) (bool, error)) (err error) {
 	op := &setop.SetOp{
 		Sources: []setop.SetOpSource{
 			setop.SetOpSource{
-				Key: joinKeys([][]byte{[]byte(primaryKey), []byte(self.typ.Name())}),
+				Key: joinKeys([][]byte{[]byte(primaryKey), []byte(self.query.typ.Name())}),
 			},
 		},
 		Type:  setop.Intersection,
 		Merge: setop.First,
 	}
-	if self.intersection != nil {
-		source, err := self.intersection.source(self.typ)
+	if self.query.intersection != nil {
+		source, err := self.query.intersection.source(self.query.typ)
 		if err != nil {
 			return err
 		}
 		op.Sources = append(op.Sources, source)
 	}
-	if self.difference != nil {
+	if self.query.difference != nil {
 		var source setop.SetOpSource
-		if source, err = self.difference.source(self.typ); err != nil {
+		if source, err = self.query.difference.source(self.query.typ); err != nil {
 			return
 		}
 		op = &setop.SetOp{
@@ -196,11 +202,11 @@ func (self *Query) each(f func(elementPointer reflect.Value) (bool, error)) (err
 			Merge: setop.First,
 		}
 	}
-	limit := self.limit
+	limit := self.query.limit
 	for _, kv := range self.tx.setOp(&setop.SetExpression{
 		Op: op,
 	}) {
-		obj := reflect.New(self.typ).Interface()
+		obj := reflect.New(self.query.typ).Interface()
 		if err = json.Unmarshal(kv.Value, obj); err != nil {
 			return
 		}
@@ -245,9 +251,18 @@ func (self *Query) First(result interface{}) (found bool, err error) {
 		return
 	}
 	self.typ = value.Type()
-	if err = self.each(func(elementPointer reflect.Value) (cont bool, err error) {
-		value.Set(elementPointer.Elem())
-		found = true
+	if err = self.run(func(tx *TX) (err error) {
+		run := &queryRun{
+			query: self,
+			tx:    tx,
+		}
+		if err = run.each(func(elementPointer reflect.Value) (cont bool, err error) {
+			value.Set(elementPointer.Elem())
+			found = true
+			return
+		}); err != nil {
+			return
+		}
 		return
 	}); err != nil {
 		return
@@ -279,14 +294,25 @@ func (self *Query) All(result interface{}) (err error) {
 		return
 	}
 	self.typ = sliceElemType
-	err = self.each(func(elementPointer reflect.Value) (cont bool, err error) {
-		if pointerSlice {
-			sliceValue.Set(reflect.Append(sliceValue, elementPointer))
-		} else {
-			sliceValue.Set(reflect.Append(sliceValue, elementPointer.Elem()))
+	if err = self.run(func(tx *TX) (err error) {
+		run := &queryRun{
+			query: self,
+			tx:    tx,
 		}
-		cont = true
+		if err = run.each(func(elementPointer reflect.Value) (cont bool, err error) {
+			if pointerSlice {
+				sliceValue.Set(reflect.Append(sliceValue, elementPointer))
+			} else {
+				sliceValue.Set(reflect.Append(sliceValue, elementPointer.Elem()))
+			}
+			cont = true
+			return
+		}); err != nil {
+			return
+		}
 		return
-	})
+	}); err != nil {
+		return
+	}
 	return
 }

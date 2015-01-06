@@ -1,7 +1,6 @@
 package unbolted
 
 import (
-	"bytes"
 	"fmt"
 	"reflect"
 	"time"
@@ -47,7 +46,7 @@ Logger is used to log and/or measure what the subscribers do.
 */
 type Logger func(i interface{}, op Operation, dur time.Duration)
 
-type matcher func(typ reflect.Type, value reflect.Value) (result bool, err error)
+type matcher func(tx *TX, typ reflect.Type, value reflect.Value) (result bool, err error)
 
 type Subscription struct {
 	db                  *DB
@@ -104,17 +103,21 @@ func (self *Subscription) handle(typ reflect.Type, oldValue, newValue *reflect.V
 	var err error
 	oldMatch := false
 	newMatch := false
-	if oldValue != nil {
-		if oldMatch, err = self.matcher(typ, *oldValue); err != nil {
-			self.Unsubscribe(err)
-			return
+	if err = self.db.View(func(tx *TX) (err error) {
+		if oldValue != nil {
+			if oldMatch, err = self.matcher(tx, typ, *oldValue); err != nil {
+				return
+			}
 		}
-	}
-	if newValue != nil {
-		if newMatch, err = self.matcher(typ, *newValue); err != nil {
-			self.Unsubscribe(err)
-			return
+		if newValue != nil {
+			if newMatch, err = self.matcher(tx, typ, *newValue); err != nil {
+				return
+			}
 		}
+		return
+	}); err != nil {
+		self.Unsubscribe(err)
+		return
 	}
 	if oldMatch && newMatch && self.ops&Update == Update {
 		cpy := reflect.New(typ)
@@ -129,105 +132,4 @@ func (self *Subscription) handle(typ reflect.Type, oldValue, newValue *reflect.V
 		cpy.Elem().Set(*newValue)
 		self.call(cpy.Interface(), Create, start)
 	}
-}
-
-/*
-Unsubscribe will remove a Subscription.
-*/
-func (self *DB) Unsubscribe(name string) {
-	self.lock.Lock()
-	defer self.lock.Unlock()
-	for _, typeSubs := range self.subscriptions {
-		delete(typeSubs, name)
-	}
-}
-
-/*
-Subscription will return a Subscription to all updates of a given object in the database.
-
-name is used to separate different Subscriptions, and to unsubscribe.
-
-ops is the binary OR of the operations this Subscription should follow.
-
-subscriber will be called on all updates of objects with the same id.
-*/
-func (self *DB) Subscription(name string, obj interface{}, ops Operation, subscriber Subscriber) (result *Subscription, err error) {
-	var wantedValue reflect.Value
-	var wantedId reflect.Value
-	if wantedValue, wantedId, err = identify(obj); err != nil {
-		return
-	}
-	wantedType := wantedValue.Type()
-	wantedBytes := make([]byte, len(wantedId.Bytes()))
-	copy(wantedBytes, wantedId.Bytes())
-	result = &Subscription{
-		name: name,
-		db:   self,
-		matcher: func(typ reflect.Type, value reflect.Value) (result bool, err error) {
-			if typ.Name() != wantedType.Name() {
-				return
-			}
-			if bytes.Compare(value.FieldByName(idField).Bytes(), wantedBytes) != 0 {
-				return
-			}
-			result = true
-			return
-		},
-		subscriber: subscriber,
-		ops:        ops,
-		typ:        wantedType,
-	}
-	return
-}
-
-/*
-EmitUpdate will trigger an Update event on obj.
-
-Useful when chaining events, such as when an update of an inner objects
-should cause an updated of an outer object.
-*/
-func (self *DB) EmitUpdate(obj interface{}) (err error) {
-	value := reflect.ValueOf(obj).Elem()
-	return self.emit(reflect.TypeOf(value.Interface()), &value, &value)
-}
-
-func callErr(f reflect.Value, args []reflect.Value) (err error) {
-	res := f.Call(args)
-	if len(res) > 0 {
-		if e, ok := res[len(res)-1].Interface().(error); ok {
-			if !res[len(res)-1].IsNil() {
-				err = e
-				return
-			}
-		}
-	}
-	return
-}
-
-func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) (err error) {
-	if oldValue != nil && newValue != nil {
-		if chain := newValue.Addr().MethodByName("Updated"); chain.IsValid() {
-			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self), oldValue.Addr()}); err != nil {
-				return
-			}
-		}
-	} else if newValue != nil {
-		if chain := newValue.Addr().MethodByName("Created"); chain.IsValid() {
-			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self)}); err != nil {
-				return
-			}
-		}
-	} else if oldValue != nil {
-		if chain := oldValue.Addr().MethodByName("Deleted"); chain.IsValid() {
-			if err = callErr(chain, []reflect.Value{reflect.ValueOf(self)}); err != nil {
-				return
-			}
-		}
-	}
-	self.lock.RLock()
-	defer self.lock.RUnlock()
-	for _, subscription := range self.subscriptions[typ.Name()] {
-		go subscription.handle(typ, oldValue, newValue)
-	}
-	return
 }
