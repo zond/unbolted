@@ -80,15 +80,14 @@ sending updates on the results of the query through the WebSocket.
 If the Subscription doesn't have a Query, the object will be loaded from the database and sent through the websocket, and then a subscription for that object will start that
 continues sending updates on the object through the WebSocket.
 */
-func (self *Subscription) Subscribe(object interface{}) error {
+func (self *Subscription) Subscribe(object interface{}) (err error) {
 	start := time.Now()
 	var sub *unbolted.Subscription
-	var err error
 	if self.Query == nil {
 		if sub, err = self.pack.db.Subscription(self.name, object, unbolted.AllOps, func(i interface{}, op unbolted.Operation) error {
 			return self.Call(i, op.String())
 		}); err != nil {
-			return err
+			return
 		}
 	} else {
 		if sub, err = self.Query.Subscription(self.name, object, unbolted.AllOps, func(i interface{}, op unbolted.Operation) error {
@@ -96,7 +95,7 @@ func (self *Subscription) Subscribe(object interface{}) error {
 			slice.Index(0).Set(reflect.ValueOf(i))
 			return self.Call(slice.Interface(), op.String())
 		}); err != nil {
-			return err
+			return
 		}
 	}
 	if self.UnsubscribeListener != nil {
@@ -114,34 +113,37 @@ func (self *Subscription) Subscribe(object interface{}) error {
 	defer self.pack.lock.Unlock()
 	self.pack.subs[self.name] = self
 	if self.Query == nil {
-		if err := self.pack.db.Get(object); err != nil {
-			if err != unbolted.ErrNotFound {
-				return err
-			} else {
-				return nil
+		if err = self.pack.db.View(func(tx *unbolted.TX) (err error) {
+			if err = tx.Get(object); err != nil {
+				if err == unbolted.ErrNotFound {
+					err = nil
+				} else {
+					return
+				}
 			}
-		} else {
 			if self.Logger != nil {
 				defer func() {
 					self.Logger(object, gosubs.FetchType, time.Now().Sub(start))
 				}()
 			}
 			return self.Call(object, gosubs.FetchType)
+		}); err != nil {
+			return
 		}
 	} else {
 		slice := reflect.New(reflect.SliceOf(reflect.TypeOf(object))).Interface()
-		if err := self.Query.All(slice); err != nil {
-			return err
-		} else {
-			iface := reflect.ValueOf(slice).Elem().Interface()
-			if self.Logger != nil {
-				defer func() {
-					self.Logger(iface, gosubs.FetchType, time.Now().Sub(start))
-				}()
-			}
-			return self.Call(iface, gosubs.FetchType)
+		if err = self.Query.All(slice); err != nil {
+			return
 		}
+		iface := reflect.ValueOf(slice).Elem().Interface()
+		if self.Logger != nil {
+			defer func() {
+				self.Logger(iface, gosubs.FetchType, time.Now().Sub(start))
+			}()
+		}
+		return self.Call(iface, gosubs.FetchType)
 	}
+	return
 }
 
 /*

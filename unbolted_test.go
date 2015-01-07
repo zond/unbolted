@@ -11,6 +11,28 @@ import (
 	"time"
 )
 
+func (self *DB) Index(obj interface{}) (err error) {
+	return self.Update(func(tx *TX) (err error) {
+		return tx.Index(obj)
+	})
+}
+
+func (self *DB) Set(obj interface{}) (err error) {
+	return self.Update(func(tx *TX) error { return tx.Set(obj) })
+}
+
+func (self *DB) Get(obj interface{}) error {
+	return self.View(func(tx *TX) error { return tx.Get(obj) })
+}
+
+func (self *DB) Del(obj interface{}) (err error) {
+	return self.Update(func(tx *TX) error { return tx.Del(obj) })
+}
+
+func (self *DB) Clear() (err error) {
+	return self.Update(func(tx *TX) error { return tx.Clear() })
+}
+
 type testStruct struct {
 	Id        []byte
 	Name      string `unbolted:"index"`
