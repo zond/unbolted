@@ -214,7 +214,7 @@ func (self *queryRun) each(f func(elementPointer reflect.Value) (bool, error)) (
 		if cont, err = f(reflect.ValueOf(obj)); err != nil {
 			return
 		}
-		if cont {
+		if !cont {
 			break
 		}
 		if limit == 1 {

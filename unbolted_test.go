@@ -451,11 +451,64 @@ type member struct {
 }
 
 func (self *member) Updated(d *DB, old *member) {
-	close(globalTestLock)
+	if globalTestLock != nil {
+		close(globalTestLock)
+	}
 }
 
 type user struct {
 	Id []byte
+}
+
+func TestAllQuery(t *testing.T) {
+	d, err := NewDB("test")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	defer d.Close()
+	if err := d.Clear(); err != nil {
+		t.Fatalf(err.Error())
+	}
+	user1 := &user{}
+	if err := d.Set(user1); err != nil {
+		t.Fatalf(err.Error())
+	}
+	game := &game{}
+	if err := d.Set(game); err != nil {
+		t.Fatalf(err.Error())
+	}
+	member1 := &member{
+		User: user1.Id,
+		Game: game.Id,
+	}
+	if err := d.Set(member1); err != nil {
+		t.Fatalf(err.Error())
+	}
+	var res []member
+	if err := d.Query().All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if len(res) != 1 {
+		t.Fatalf("wanted 1 members, got %#v", res)
+	}
+	user2 := &user{}
+	if err := d.Set(user2); err != nil {
+		t.Fatalf(err.Error())
+	}
+	member2 := &member{
+		User: user2.Id,
+		Game: game.Id,
+	}
+	if err := d.Set(member2); err != nil {
+		t.Fatalf(err.Error())
+	}
+	res = nil
+	if err := d.Query().All(&res); err != nil {
+		t.Fatalf(err.Error())
+	}
+	if len(res) != 2 {
+		t.Fatalf("wanted 2 members, got %#v of %#v, %#v", res, member1, member2)
+	}
 }
 
 var globalTestLock chan bool

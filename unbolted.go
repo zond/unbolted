@@ -2,15 +2,15 @@ package unbolted
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"reflect"
 	"strings"
 	"time"
 )
-
-type Id []byte
 
 const (
 	unbolted       = "unbolted"
@@ -19,6 +19,38 @@ const (
 	updatedAtField = "UpdatedAt"
 	createdAtField = "CreatedAt"
 )
+
+type Id []byte
+
+func (self Id) String() string {
+	return base64.URLEncoding.EncodeToString(self)
+}
+
+func DecodeId(s string) (result Id, err error) {
+	b, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		return
+	}
+	result = Id(b)
+	return
+}
+
+func (self Id) MarshalJSON() (b []byte, err error) {
+	return json.Marshal(self.String())
+}
+
+func (self *Id) UnmarshalJSON(b []byte) (err error) {
+	base64Encoded := ""
+	if err = json.Unmarshal(b, &base64Encoded); err != nil {
+		return
+	}
+	*self, err = base64.URLEncoding.DecodeString(base64Encoded)
+	return
+}
+
+func (self *Id) Equals(o Id) bool {
+	return bytes.Compare([]byte(*self), []byte(o)) == 0
+}
 
 var primaryKey = []byte("pk")
 var secondaryIndex = []byte("2i")

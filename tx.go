@@ -2,6 +2,7 @@ package unbolted
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -12,6 +13,10 @@ import (
 type TX struct {
 	tx *bolt.Tx
 	db *DB
+}
+
+func (self *TX) DB() *DB {
+	return self.db
 }
 
 func (self *TX) update(id []byte, oldValue, objValue reflect.Value, typ reflect.Type, obj interface{}) (err error) {
@@ -95,6 +100,27 @@ func (self *TX) dig(keys [][]byte, create bool) (buckets []*bolt.Bucket, err err
 		buckets = append(buckets, bucket)
 	}
 	return
+}
+
+func (self *TX) Index(obj interface{}) (err error) {
+	value, id, err := identify(obj)
+	if err != nil {
+		return err
+	}
+	idBytes := id.Bytes()
+	if idBytes == nil {
+		return fmt.Errorf("Can't Index %+v without Id", obj)
+	}
+	typ := value.Type()
+	old := reflect.New(typ).Interface()
+	oldValue := reflect.ValueOf(old).Elem()
+	if err = self.get(idBytes, oldValue, old); err != nil {
+		return
+	}
+	if err = self.deIndex(idBytes, oldValue, oldValue.Type()); err != nil {
+		return
+	}
+	return self.index(idBytes, value, value.Type())
 }
 
 func (self *TX) index(id []byte, value reflect.Value, typ reflect.Type) (err error) {

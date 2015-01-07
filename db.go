@@ -194,3 +194,9 @@ func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) (err e
 	}
 	return
 }
+
+func (self *DB) Index(obj interface{}) (err error) {
+	return self.Update(func(tx *TX) (err error) {
+		return tx.Index(obj)
+	})
+}
