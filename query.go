@@ -9,13 +9,17 @@ import (
 	"github.com/zond/setop"
 )
 
-// QFilters are used to filter queries
+/*
+QFilters are used to filter queries
+*/
 type QFilter interface {
 	source(typ reflect.Type) (result setop.SetOpSource, err error)
 	match(tx *TX, typ reflect.Type, value reflect.Value) (result bool, err error)
 }
 
-// Or is a QFilter that defineds an OR operation.
+/*
+Or is a QFilter that defineds an OR operation.
+*/
 type Or []QFilter
 
 func (self Or) source(typ reflect.Type) (result setop.SetOpSource, err error) {
@@ -43,7 +47,9 @@ func (self Or) match(tx *TX, typ reflect.Type, value reflect.Value) (result bool
 	return
 }
 
-// And is a QFilter that defines an AND operation.
+/*
+And is a QFilter that defines an AND operation.
+*/
 type And []QFilter
 
 func (self And) source(typ reflect.Type) (result setop.SetOpSource, err error) {
@@ -72,7 +78,9 @@ func (self And) match(tx *TX, typ reflect.Type, value reflect.Value) (result boo
 	return
 }
 
-// Equals is a QFilter that defines an == operation.
+/*
+Equals is a QFilter that defines an == operation.
+*/
 type Equals struct {
 	Field string
 	Value interface{}
@@ -106,7 +114,7 @@ func (self Equals) match(tx *TX, typ reflect.Type, value reflect.Value) (result 
 }
 
 /*
-Query is a search operation using an SQL-like syntax to fetch records from the database.
+Query is a search operation using a somewhat SQLy syntax to fetch records from the database.
 
 Example: db.Query().Filter(And{Equals{"Name", "John"}, Or{Equals{"Surname", "Doe"}, Equals{"Surname", "Smith"}}}).All(&result)
 */
@@ -120,13 +128,8 @@ type Query struct {
 }
 
 /*
-Subscription will return a subscriber for all database updates matching this query.
-
-name is used to separate different subscriptions, and to unsubscribe.
-
-ops is the binary OR of the operations this Subscription should follow.
-
-subscriber will be called for all updates of the results of the query.
+Subscription will return a subscription with name, watching changes to objects of the same type as obj matching this query.
+It will watch for operations matching ops, and send the events to subscriber.
 */
 func (self *Query) Subscription(name string, obj interface{}, ops Operation, subscriber Subscriber) (result *Subscription, err error) {
 	var value reflect.Value
@@ -226,25 +229,33 @@ func (self *queryRun) each(f func(elementPointer reflect.Value) (bool, error)) (
 	return
 }
 
-// Except will add a filter excluding matching items from the results of this query.
+/*
+Except will add a filter excluding matching items from the results of this query.
+*/
 func (self *Query) Except(f QFilter) *Query {
 	self.difference = f
 	return self
 }
 
-// Limit will limit the number of matches returned
+/*
+Limit will limit the number of matches returned.
+*/
 func (self *Query) Limit(l int) *Query {
 	self.limit = l
 	return self
 }
 
-// Where will add a filter limiting the results of this query to matching items.
+/*
+Where will add a filter limiting the results of this query to matching items.
+*/
 func (self *Query) Where(f QFilter) *Query {
 	self.intersection = f
 	return self
 }
 
-// First will load the first match of this query into result.
+/*
+First will load the first match of this query into result.
+*/
 func (self *Query) First(result interface{}) (found bool, err error) {
 	var value reflect.Value
 	if value, _, err = identify(result); err != nil {
@@ -270,7 +281,9 @@ func (self *Query) First(result interface{}) (found bool, err error) {
 	return
 }
 
-// All will load all results of this quer into result.
+/*
+All will load all results of this quer into result.
+*/
 func (self *Query) All(result interface{}) (err error) {
 	slicePtrValue := reflect.ValueOf(result)
 	if slicePtrValue.Kind() != reflect.Ptr {

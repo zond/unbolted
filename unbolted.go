@@ -20,12 +20,18 @@ const (
 	createdAtField = "CreatedAt"
 )
 
+/*
+Id is what identifies objects.
+*/
 type Id []byte
 
 func (self Id) String() string {
 	return base64.URLEncoding.EncodeToString(self)
 }
 
+/*
+DecodeId decodes the String() representation of an Id.
+*/
 func DecodeId(s string) (result Id, err error) {
 	b, err := base64.URLEncoding.DecodeString(s)
 	if err != nil {

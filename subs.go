@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+/*
+Operation defines a kind of database change.
+*/
 type Operation int
 
 func (self Operation) String() string {
@@ -21,8 +24,11 @@ func (self Operation) String() string {
 }
 
 const (
+	// Create is the operation used when new objects are inserted into the database.
 	Create Operation = 1 << iota
+	// Update is the operation used when existing objects are updated in the database.
 	Update
+	// Delete is the operation used when existing objects are removed from the database.
 	Delete
 )
 
@@ -48,15 +54,23 @@ type Logger func(i interface{}, op Operation, dur time.Duration)
 
 type matcher func(tx *TX, typ reflect.Type, value reflect.Value) (result bool, err error)
 
+/*
+Subscription is returned when the DB or a Query is asked to subscribe to something.
+It doesn't start working until Subscribe is called.
+Before you call Subscribe you can set an UnsubscribeListener or a Logger.
+*/
 type Subscription struct {
-	db                  *DB
-	name                string
-	matcher             matcher
-	subscriber          Subscriber
+	// UnsubscribeListener will be notified when this Subscription gets unsubscribed.
 	UnsubscribeListener UnsubscribeListener
-	Logger              Logger
-	ops                 Operation
-	typ                 reflect.Type
+	// Logger gets notified whenever something happens with this Subscription.
+	Logger Logger
+
+	db         *DB
+	name       string
+	matcher    matcher
+	subscriber Subscriber
+	ops        Operation
+	typ        reflect.Type
 }
 
 /*

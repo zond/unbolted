@@ -15,6 +15,9 @@ type TX struct {
 	db *DB
 }
 
+/*
+DB returns the DB of this TX.
+*/
 func (self *TX) DB() *DB {
 	return self.db
 }
@@ -73,6 +76,9 @@ func (self *TX) create(id []byte, value reflect.Value, typ reflect.Type, obj int
 	return nil
 }
 
+/*
+Count returns the number of objects of the same type as obj in this TX.
+*/
 func (self *TX) Count(obj interface{}) (result int, err error) {
 	value, _, err := identify(obj)
 	if err != nil {
@@ -118,6 +124,10 @@ func (self *TX) dig(keys [][]byte, create bool) (buckets []*bolt.Bucket, err err
 	return
 }
 
+/*
+Index will to load obj in this TX, de-index it and then index it again.
+Indexed fields are annotated with `unbolted:"index"`.
+*/
 func (self *TX) Index(obj interface{}) (err error) {
 	value, id, err := identify(obj)
 	if err != nil {
@@ -195,6 +205,9 @@ func (self *TX) get(id []byte, value reflect.Value, obj interface{}) (err error)
 	return json.Unmarshal(b, obj)
 }
 
+/*
+Clear will empty this TX.
+*/
 func (self *TX) Clear() (err error) {
 	cursor := self.tx.Cursor()
 	for key, _ := cursor.First(); key != nil; key, _ = cursor.Next() {
@@ -205,6 +218,12 @@ func (self *TX) Clear() (err error) {
 	return
 }
 
+/*
+Set will save obj in this TX.
+If obj has no Id, or if the Id does not already exist in the TX, it will be indexed and created.
+If obj has an Id that exists in the TX, the old object will be loaded and de-indexed, then obj will be indexd and saved.
+Indexed fields have the annotation `unbolted:"index"`.
+*/
 func (self *TX) Set(obj interface{}) (err error) {
 	value, id, err := identify(obj)
 	if err != nil {
@@ -229,6 +248,9 @@ func (self *TX) Set(obj interface{}) (err error) {
 	}
 }
 
+/*
+Get will load the object in this TX of the same type and id as obj into obj.
+*/
 func (self *TX) Get(obj interface{}) error {
 	value, id, err := identify(obj)
 	if err != nil {
@@ -237,6 +259,9 @@ func (self *TX) Get(obj interface{}) error {
 	return self.get(id.Bytes(), value, obj)
 }
 
+/*
+Del will delete the object in this TX of the same type and id as obj.
+*/
 func (self *TX) Del(obj interface{}) (err error) {
 	value, id, err := identify(obj)
 	if err != nil {
@@ -284,9 +309,9 @@ func (self *TX) skipper(b []byte) (result setop.Skipper, err error) {
 	return
 }
 
-func (self *TX) setOp(expr *setop.SetExpression) (result []KV) {
+func (self *TX) setOp(expr *setop.SetExpression) (result []kv) {
 	if err := expr.Each(self.skipper, func(res *setop.SetOpResult) {
-		result = append(result, KV{
+		result = append(result, kv{
 			Keys:  [][]byte{res.Key},
 			Value: res.Values[0],
 		})
@@ -296,6 +321,9 @@ func (self *TX) setOp(expr *setop.SetExpression) (result []KV) {
 	return
 }
 
+/*
+Query will return a query in this TX.
+*/
 func (self *TX) Query() *Query {
 	return &Query{
 		db: self.db,

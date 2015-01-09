@@ -7,7 +7,7 @@ import (
 	"github.com/zond/setop"
 )
 
-type KV struct {
+type kv struct {
 	Keys  [][]byte
 	Value []byte
 }
