@@ -73,6 +73,22 @@ func (self *TX) create(id []byte, value reflect.Value, typ reflect.Type, obj int
 	return nil
 }
 
+func (self *TX) Count(obj interface{}) (result int, err error) {
+	value, _, err := identify(obj)
+	if err != nil {
+		return
+	}
+	buckets, err := self.dig([][]byte{primaryKey, []byte(value.Type().Name())}, false)
+	if err != nil {
+		if err == ErrNotFound {
+			err = nil
+		}
+		return
+	}
+	result = buckets[len(buckets)-1].Stats().KeyN
+	return
+}
+
 func (self *TX) dig(keys [][]byte, create bool) (buckets []*bolt.Bucket, err error) {
 	var bucket *bolt.Bucket
 	if create {

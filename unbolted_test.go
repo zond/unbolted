@@ -3,6 +3,8 @@ package unbolted
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
+	"os"
 	"reflect"
 	"runtime/debug"
 	"strings"
@@ -10,6 +12,144 @@ import (
 	"testing"
 	"time"
 )
+
+type benchStruct0 struct {
+	Id   []byte
+	Name string
+}
+
+type benchStruct1 struct {
+	Id   []byte
+	Name string `unbolted:"index"`
+}
+
+type benchStruct10 struct {
+	Id     []byte
+	Name   string `unbolted:"index"`
+	Name2  string `unbolted:"index"`
+	Name3  string `unbolted:"index"`
+	Name4  string `unbolted:"index"`
+	Name5  string `unbolted:"index"`
+	Name6  string `unbolted:"index"`
+	Name7  string `unbolted:"index"`
+	Name8  string `unbolted:"index"`
+	Name9  string `unbolted:"index"`
+	Name10 string `unbolted:"index"`
+}
+
+func withBenchDB(b *testing.B, fresh bool, f func(db *DB)) {
+	if fresh {
+		if err := os.Remove("bench"); err != nil {
+			if os.IsNotExist(err) {
+				err = nil
+			} else {
+				b.Fatalf(err.Error())
+			}
+		}
+	}
+	benchdb, err := NewDB("bench")
+	if err != nil {
+		b.Fatalf(err.Error())
+	}
+	defer func() {
+		if err := benchdb.Close(); err != nil {
+			b.Fatalf(err.Error())
+		}
+	}()
+	f(benchdb)
+}
+
+func benchWrite(b *testing.B, objs []interface{}) {
+	withBenchDB(b, true, func(benchdb *DB) {
+		b.ResetTimer()
+		for _, s := range objs {
+			if err := benchdb.Update(func(tx *TX) error { return tx.Set(s) }); err != nil {
+				b.Fatalf(err.Error())
+			}
+		}
+	})
+}
+
+func benchGet(b *testing.B, objs []interface{}) {
+	withBenchDB(b, false, func(benchdb *DB) {
+		size := 0
+		if err := benchdb.View(func(tx *TX) (err error) {
+			size, err = tx.Count(objs[0])
+			return
+		}); err != nil {
+			b.Fatalf(err.Error())
+		}
+		towrite := objs
+		if len(towrite) > size {
+			towrite = towrite[size:]
+		}
+		for _, s := range towrite {
+			if err := benchdb.Update(func(tx *TX) error { return tx.Set(s) }); err != nil {
+				b.Fatalf(err.Error())
+			}
+		}
+		b.ResetTimer()
+		for _, s := range objs {
+			if err := benchdb.View(func(tx *TX) error { return tx.Get(s) }); err != nil {
+				b.Fatalf("Unable to load %+v: %v", s, err.Error())
+			}
+		}
+	})
+}
+
+func makeBenchStructs(b *testing.B, gen func(rand.Source) interface{}) (result []interface{}) {
+	source := rand.NewSource(0)
+	result = make([]interface{}, b.N)
+	for index, _ := range result {
+		result[index] = gen(source)
+	}
+	return
+}
+
+func BenchmarkGet(b *testing.B) {
+	benchGet(b, makeBenchStructs(b, func(source rand.Source) interface{} {
+		return &benchStruct0{
+			Id:   []byte(fmt.Sprintf("%v", source.Int63())),
+			Name: fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+		}
+	}))
+}
+
+func BenchmarkWriteNoIndex(b *testing.B) {
+	benchWrite(b, makeBenchStructs(b, func(source rand.Source) interface{} {
+		return &benchStruct0{
+			Id:   []byte(fmt.Sprintf("%v", source.Int63())),
+			Name: fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+		}
+	}))
+}
+
+func BenchmarkWriteOneIndex(b *testing.B) {
+	benchWrite(b, makeBenchStructs(b, func(source rand.Source) interface{} {
+		return &benchStruct1{
+			Id:   []byte(fmt.Sprintf("%v", source.Int63())),
+			Name: fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+		}
+	}))
+}
+
+func BenchmarkWrite10Index(b *testing.B) {
+	benchWrite(b, makeBenchStructs(b, func(source rand.Source) interface{} {
+		return &benchStruct10{
+			Id:     []byte(fmt.Sprintf("%v", source.Int63())),
+			Name:   fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name2:  fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name3:  fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name4:  fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name5:  fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name6:  fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name7:  fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name8:  fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name9:  fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+			Name10: fmt.Sprintf("%v%v", source.Int63(), source.Int63()),
+		}
+	}))
+}
 
 func (self *DB) Index(obj interface{}) (err error) {
 	return self.Update(func(tx *TX) (err error) {
@@ -23,6 +163,14 @@ func (self *DB) Set(obj interface{}) (err error) {
 
 func (self *DB) Get(obj interface{}) error {
 	return self.View(func(tx *TX) error { return tx.Get(obj) })
+}
+
+func (self *DB) Count(obj interface{}) (result int, err error) {
+	err = self.View(func(tx *TX) (err error) {
+		result, err = tx.Count(obj)
+		return
+	})
+	return
 }
 
 func (self *DB) Del(obj interface{}) (err error) {
@@ -42,6 +190,16 @@ type testStruct struct {
 	UpdatedAt time.Time
 }
 
+func assertSize(t *testing.T, d *DB, obj interface{}, s int) {
+	count, err := d.Count(obj)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+	if count != s {
+		t.Fatalf("wrong size, wanted %v but got %v", s, count)
+	}
+}
+
 func TestCRUD(t *testing.T) {
 	d, err := NewDB("test")
 	if err != nil {
@@ -51,10 +209,12 @@ func TestCRUD(t *testing.T) {
 	if err := d.Clear(); err != nil {
 		t.Fatalf(err.Error())
 	}
+	assertSize(t, d, &testStruct{}, 0)
 	mock := &testStruct{Id: []byte("hepp")}
 	if err := d.Del(mock); err != ErrNotFound {
 		t.Fatalf("Wanted an ErrNotFound")
 	}
+	assertSize(t, d, &testStruct{}, 0)
 	hehu := testStruct{
 		Name: "hehu",
 		Age:  12,
@@ -62,6 +222,7 @@ func TestCRUD(t *testing.T) {
 	if err := d.Set(&hehu); err != nil {
 		t.Fatalf(err.Error())
 	}
+	assertSize(t, d, &testStruct{}, 1)
 	if hehu.Id == nil {
 		t.Fatalf("Did not create id")
 	}
