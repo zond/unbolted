@@ -126,7 +126,7 @@ func (self *Subscription) Subscribe(object interface{}) (err error) {
 					self.Logger(object, wsubs.FetchType, time.Now().Sub(start))
 				}()
 			}
-			return self.Call(object, gosubs.FetchType)
+			return self.Call(object, wsubs.FetchType)
 		}); err != nil {
 			return
 		}
@@ -138,10 +138,10 @@ func (self *Subscription) Subscribe(object interface{}) (err error) {
 		iface := reflect.ValueOf(slice).Elem().Interface()
 		if self.Logger != nil {
 			defer func() {
-				self.Logger(iface, gosubs.FetchType, time.Now().Sub(start))
+				self.Logger(iface, wsubs.FetchType, time.Now().Sub(start))
 			}()
 		}
-		return self.Call(iface, gosubs.FetchType)
+		return self.Call(iface, wsubs.FetchType)
 	}
 	return
 }
