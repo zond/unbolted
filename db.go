@@ -100,31 +100,6 @@ func (self *DB) Update(f func(tx *TX) error) (err error) {
 	return
 }
 
-func (self *DB) Set(obj interface{}) (err error) {
-	return self.Update(func(tx *TX) error { return tx.Set(obj) })
-}
-
-func (self *DB) Get(obj interface{}) error {
-	return self.View(func(tx *TX) error { return tx.Get(obj) })
-}
-
-func (self *DB) Del(obj interface{}) (err error) {
-	return self.Update(func(tx *TX) error { return tx.Del(obj) })
-}
-
-func (self *DB) Clear() (err error) {
-	return self.Update(func(tx *TX) error { return tx.Clear() })
-}
-
-func (self *DB) Query() *Query {
-	return &Query{
-		db: self,
-		run: func(f func(*TX) error) error {
-			return self.View(f)
-		},
-	}
-}
-
 func (self *DB) Unsubscribe(name string) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
@@ -195,8 +170,11 @@ func (self *DB) emit(typ reflect.Type, oldValue, newValue *reflect.Value) (err e
 	return
 }
 
-func (self *DB) Index(obj interface{}) (err error) {
-	return self.Update(func(tx *TX) (err error) {
-		return tx.Index(obj)
-	})
+func (self *DB) Query() *Query {
+	return &Query{
+		db: self,
+		run: func(f func(*TX) error) error {
+			return self.View(f)
+		},
+	}
 }
