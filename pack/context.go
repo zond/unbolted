@@ -2,11 +2,11 @@ package pack
 
 import (
 	"github.com/zond/unbolted"
-	"github.com/zond/wsubs/gosubs"
+	"github.com/zond/wsubs"
 )
 
 type SubContext interface {
-	gosubs.Context
+	wsubs.Context
 	Pack() *Pack
 	DB() *unbolted.DB
 }
@@ -23,7 +23,7 @@ type TXContext interface {
 	TX() *unbolted.TX
 }
 
-func NewContext(c gosubs.Context, pack *Pack, router *Router) Context {
+func NewContext(c wsubs.Context, pack *Pack, router *Router) Context {
 	return &defaultContext{
 		Context: c,
 		pack:    pack,
@@ -33,7 +33,7 @@ func NewContext(c gosubs.Context, pack *Pack, router *Router) Context {
 }
 
 type defaultContext struct {
-	gosubs.Context
+	wsubs.Context
 	pack   *Pack
 	router *Router
 	db     *unbolted.DB

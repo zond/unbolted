@@ -8,7 +8,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/zond/unbolted"
-	"github.com/zond/wsubs/gosubs"
+	"github.com/zond/wsubs"
 )
 
 /*
@@ -55,9 +55,9 @@ Send will send a message through the WebSocket of this Subscription.
 Message.Type will be op, Message.Object.URI will be the uri of this subscription and Message.Object.Data will be the JSON representation of i.
 */
 func (self *Subscription) Send(i interface{}, op string) (err error) {
-	return self.pack.ws.WriteJSON(gosubs.Message{
+	return self.pack.ws.WriteJSON(wsubs.Message{
 		Type: op,
-		Object: &gosubs.Object{
+		Object: &wsubs.Object{
 			Data: i,
 			URI:  self.uri,
 		},
@@ -123,10 +123,10 @@ func (self *Subscription) Subscribe(object interface{}) error {
 		} else {
 			if self.Logger != nil {
 				defer func() {
-					self.Logger(object, gosubs.FetchType, time.Now().Sub(start))
+					self.Logger(object, wsubs.FetchType, time.Now().Sub(start))
 				}()
 			}
-			return self.Call(object, gosubs.FetchType)
+			return self.Call(object, wsubs.FetchType)
 		}
 	} else {
 		slice := reflect.New(reflect.SliceOf(reflect.TypeOf(object))).Interface()
@@ -136,10 +136,10 @@ func (self *Subscription) Subscribe(object interface{}) error {
 			iface := reflect.ValueOf(slice).Elem().Interface()
 			if self.Logger != nil {
 				defer func() {
-					self.Logger(iface, gosubs.FetchType, time.Now().Sub(start))
+					self.Logger(iface, wsubs.FetchType, time.Now().Sub(start))
 				}()
 			}
-			return self.Call(iface, gosubs.FetchType)
+			return self.Call(iface, wsubs.FetchType)
 		}
 	}
 }
